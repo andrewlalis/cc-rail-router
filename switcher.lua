@@ -4,7 +4,7 @@ junction. As a player with a portable computer approaches, that portable
 computer will be sending out a signal indicating their preferred switching
 configuration (the branch they're coming from, and the one they want to go to),
 and the junction's computer will then send a success reply.
-]]
+]]--
 
 local CONFIG_FILE = "switch_config.tbl"
 local CHANNEL = 0
@@ -89,7 +89,7 @@ local function configSetupWizard()
             end
             table.insert(sw.controls, ctl)
         end
-        table.insert(config.switches, sw)
+        table.insert(cfg.switches, sw)
     end
     local f = io.open(CONFIG_FILE, "w")
     f:write(textutils.serialize(cfg))
