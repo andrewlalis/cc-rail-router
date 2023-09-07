@@ -1,16 +1,15 @@
 --[[
 This program is to be installed on a computer that controls a single rail
 junction. As a player with a portable computer approaches, that portable
-computer will be sending out a signal indicating their preferred switching
-configuration (the branch they're coming from, and the one they want to go to),
-and the junction's computer will then send a success reply.
+computer will be sending out a signal containing their route, and this switch
+will decode it and make any adjustments it needs to.
 ]]--
 
 local CONFIG_FILE = "switch_config.tbl"
 local CHANNEL = 0
 local config = nil
  
-local modem = peripheral.wrap("top") or error("Missing modem")
+local modem = peripheral.wrap("top") or error("Missing top modem")
 if not modem.isWireless() then error("Wireless modem required") end
 modem.open(CHANNEL)
  
@@ -33,6 +32,7 @@ local function configSetupWizard()
             print("Invalid range value. Should be a positive integer number. Got "..rangeStr)
             return nil
         end
+        cfg.range = rangeInt
     end
     print("How many switch configurations are there? Usually 1 for each possible path of travel.")
     local switchCountStr = io.read()
@@ -103,8 +103,8 @@ local function loadConfig()
         local cfg = textutils.unserialize(f:read("*a"))
         f:close()
         print("Loaded configuration from file:")
-        print("  "..tostring(#config.switches).." switch configurations.")
-        print("  "..tostring(config.range).." block range.")
+        print("  "..tostring(#cfg.switches).." switch configurations.")
+        print("  "..tostring(cfg.range).." block range.")
         return cfg
     else
         print("File "..CONFIG_FILE.." doesn't exist. Start setup wizard? [y/n]")
@@ -156,6 +156,10 @@ end
 -- Handles incoming rail messages that consist of a list of branch names
 -- that the user would like to traverse.
 local function handleModemMsg(replyChannel, msg)
+    if type(msg) == "string" and msg == "PING" then
+        modem.transmit(replyChannel, CHANNEL, "PONG")
+        return
+    end
     -- Ignore invalid messages.
     if not msg or #msg < 2 then return end
     -- Find the switch configuration(s) that pertain to this route.
