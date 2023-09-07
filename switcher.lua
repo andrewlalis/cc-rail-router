@@ -117,27 +117,12 @@ local function loadConfig()
     end
 end
 
-local config = {range=32, switches={}}
-if fs.exists(CONFIG_FILE) then
-    local f = io.open(CONFIG_FILE, "r")
-    config = textutils.unserialize(f:read("*a"))
-    f:close()
-    print("Loaded config:")
-    print("  "..tostring(#config.switches).." switch configurations")
-    print("  Range of "..tostring(config.range).." blocks")
-else
-    local f = io.open(CONFIG_FILE, "w")
-    f:write(textutils.serialize(config))
-    f:close()
-    print("Saved config to "..CONFIG_FILE)
-end
-
 local function findSwitchConfiguration(cfg, from, to)
     if from == nil or to == nil then return nil end
     for _, sw in pairs(cfg.switches) do
         if sw.from == from and sw.to == to then return sw end
     end
-    return nil end
+    return nil
 end
 
 local function isSwitchConfigurationActive(sw)
