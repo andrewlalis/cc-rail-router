@@ -6,7 +6,7 @@ will decode it and make any adjustments it needs to.
 ]]--
 
 local CONFIG_FILE = "switch_config.tbl"
-local CHANNEL = 0
+local CHANNEL = 45450
 local config = nil
  
 local modem = peripheral.wrap("top") or error("Missing top modem")
@@ -15,7 +15,7 @@ modem.open(CHANNEL)
  
 term.clear()
 term.setCursorPos(1, 1)
-print("Receiving routing commands on channel 0")
+print("Receiving routing commands on channel " .. CHANNEL)
 
 -- Series of guided inputs for building a configuration file from user input.
 local function configSetupWizard()
@@ -156,10 +156,6 @@ end
 -- Handles incoming rail messages that consist of a list of branch names
 -- that the user would like to traverse.
 local function handleModemMsg(replyChannel, msg)
-    if type(msg) == "string" and msg == "PING" then
-        modem.transmit(replyChannel, CHANNEL, "PONG")
-        return
-    end
     -- Ignore invalid messages.
     if not msg or #msg < 2 then return end
     -- Find the switch configuration(s) that pertain to this route.
