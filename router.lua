@@ -131,6 +131,7 @@ local function handleNearbyStation()
             end
             -- Either wait for the user to choose a route, or go away from the
             -- station transponder.
+            local routeChosen = false
             parallel.waitForAny(
                 function ()
                     while true do
@@ -141,6 +142,7 @@ local function handleNearbyStation()
                             elseif y > 1 and y - 1 <= #routes then
                                 local selectedRoute = routes[y-1]
                                 os.queueEvent("rail_route_selected", selectedRoute)
+                                routeChosen = true
                                 return
                             end
                         end
@@ -148,6 +150,8 @@ local function handleNearbyStation()
                 end,
                 function () waitForNoStation(name) end
             )
+            -- Quit our main loop if the user has chosen a route.
+            if routeChosen then return end
         end
     end
 end

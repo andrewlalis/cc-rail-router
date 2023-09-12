@@ -4,7 +4,8 @@ particular route to another station.
 
 You should add a "station_config.tbl" file containing:
 {
-    name = "Station name",
+    name = "stationname",
+    displayName = "Station Name",
     range = 8,
     routes = {
         {name = "First", path = {"A", "B", "C"}},
@@ -50,6 +51,7 @@ local config = readConfig()
 term.clear()
 term.setCursorPos(1, 1)
 print("Running station transponder for \""..config.name.."\".")
+print("  Display Name: "..config.displayName)
 print("  Range: "..config.range.." blocks")
 print("  Routes:")
 for i, route in pairs(config.routes) do
