@@ -1,6 +1,7 @@
 --[[
 This program should be installed on a portable computer with a wireless
 modem, to act as a routing beacon in conjunction with managed switches.
+It also serves as the GUI that users of the system interact with.
 ]]--
 local SWITCH_CHANNEL = 45450
 local STATION_BROADCAST_CHANNEL = 45451
