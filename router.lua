@@ -31,11 +31,18 @@ local function broadcastRoute(route)
     end
 end
 
+local function isValidStationInfo(msg)
+    return msg ~= nil and
+        msg.name ~= nil and type(msg.name) == "string" and
+        msg.range ~= nil and type(msg.range) == "number" and
+        msg.displayName ~= nil and type(msg.displayName) == "string"
+end
+
 -- Repeats until we are within range of a station that's sending out its info.
 local function waitForStation(stationName)
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if channel == STATION_BROADCAST_CHANNEL and msg and msg.name == stationName and msg.range >= dist then
+        if channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.name == stationName and msg.range >= dist then
             return
         end
     end
@@ -44,7 +51,7 @@ end
 local function listenForAnyStation()
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if channel == STATION_BROADCAST_CHANNEL and msg and msg.range >= dist then
+        if channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.range >= dist then
             os.queueEvent("rail_station_nearby", msg, dist)
         end
     end
@@ -87,63 +94,81 @@ local function waitForModemMessage(expectedReplyChannel, timeout)
     return data
 end
 
+local function drawLookingForStationScreen()
+    g.clear(term, colors.white)
+    g.drawText(term, 1, 1, "Looking for nearby station", colors.black, colors.yellow)
+    g.drawText(term, 1, 2, "Walk near a station to", colors.gray, colors.white)
+    g.drawText(term, 1, 3, "see available routes.", colors.gray, colors.white)
+end
+
+local function drawStationFoundScreen(stationName)
+    g.clear(term, colors.white)
+    g.drawXLine(term, 1, W, 1, colors.lightBlue)
+    g.drawText(term, 1, 1, "Found a station!", colors.black, colors.lightBlue)
+    g.drawText(term, 1, 3, stationName, colors.blue, colors.white)
+    g.drawText(term, 1, 5, "Fetching routes...", colors.gray, colors.white)
+end
+
+local function drawDestinationsChoiceScreen(choices)
+    g.clear(term, colors.white)
+    g.drawXLine(term, 1, W, 1, colors.blue)
+    g.drawText(term, 1, 1, "Destinations", colors.white, colors.blue)
+    g.drawText(term, W-3, 1, "Quit", colors.white, colors.red)
+    for i, choice in pairs(choices) do
+        local y = i + 1
+        local bg = colors.white
+        if i % 2 == 0 then bg = colors.lightGray end
+        g.drawXLine(term, 1, W, y, bg)
+        g.drawText(term, 1, y, i..". "..choice, colors.black, bg)
+    end
+end
+
+local function drawErrorPage(errorMsg)
+    g.clear(term, colors.white)
+    g.drawXLine(term, 1, W, 1, colors.red)
+    g.drawText(term, 1, 1, "Error", colors.white, colors.red)
+    term.setCursorPos(1, 2)
+    term.setTextColor(colors.black)
+    term.setBackgroundColor(colors.white)
+    print(errorMsg)
+    local x, y = term.getCursorPos()
+    term.setCursorPos(1, y + 1)
+    print("Click to dismiss")
+    parallel.waitForAny(
+        function () os.sleep(5) end,
+        function () os.pullEvent("mouse_click") end
+    )
+end
+
 local function handleNearbyStation()
     while true do
-        g.clear(term, colors.white)
-        g.drawText(term, 1, 1, "Looking for nearby station", colors.black, colors.yellow)
-        g.drawText(term, 1, 2, "Walk near a station to", colors.gray, colors.white)
-        g.drawText(term, 1, 3, "see available routes.", colors.gray, colors.white)
-        os.sleep(1)
-
+        drawLookingForStationScreen()
         local event, stationData, dist = os.pullEvent("rail_station_nearby")
-        g.clear(term, colors.white)
-        g.drawXLine(term, 1, W, 1, colors.lightBlue)
-        g.drawText(term, 1, 1, "Found a station!", colors.black, colors.lightBlue)
-        g.drawText(term, 1, 3, stationData.name, colors.blue, colors.white)
-        g.drawText(term, 1, 5, "Fetching routes...", colors.gray, colors.white)
-        os.sleep(1)
+        drawStationFoundScreen(stationData.displayName)
+        os.sleep(0.5)
 
-        modem.transmit(STATION_REQUEST_CHANNEL, MY_CHANNEL, "GET_ROUTES")
-        local response = waitForModemMessage(STATION_REQUEST_CHANNEL, 1)
-        if not response or not response.msg or type(response.msg) ~= "table" then
-            g.clear(term, colors.white)
-            g.drawXLine(term, 1, W, 1, colors.red)
-            g.drawText(term, 1, 1, "Error", colors.white, colors.red)
-            g.drawText(term, 1, 2, "Failed to get routes.", colors.gray, colors.white)
-            if response then
-                term.setCursorPos(1, 3)
-                term.setTextColor(colors.black)
-                term.setBackgroundColor(colors.lightGray)
-                print("Response:"..textutils.serialize(response, {compact=true}))
+        modem.transmit(SERVER_CHANNEL, MY_CHANNEL, {command = "GET_ROUTES", startNode = stationData.name})
+        local response = waitForModemMessage(SERVER_CHANNEL, 3)
+        if response and response.msg.success then
+            local stations = response.msg.stations
+            local stationNames = {}
+            local stationIds = {}
+            for _, station in pairs(stations) do
+                table.insert(stationNames, station.displayName)
+                table.insert(stationIds, station.id)
             end
-            os.sleep(5)
-        else
-            local routes = response.msg
-            g.clear(term, colors.white)
-            g.drawXLine(term, 1, W, 1, colors.blue)
-            g.drawText(term, 1, 1, "Routes", colors.white, colors.blue)
-            g.drawText(term, W-3, 1, "Quit", colors.white, colors.red)
-            for i, route in pairs(routes) do
-                local y = i + 1
-                local bg = colors.white
-                if i % 2 == 0 then bg = colors.lightGray end
-                g.drawXLine(term, 1, W, y, bg)
-                g.drawText(term, 1, y, i..". "..route.name, colors.black, bg)
-            end
-            -- Either wait for the user to choose a route, or go away from the
-            -- station transponder.
-            local routeChosen = false
+            drawDestinationsChoiceScreen(stationNames)
+            local destination = nil
+            -- Wait for user to choose destination, quit, or go away from station.
             parallel.waitForAny(
                 function ()
                     while true do
                         local event, button, x, y = os.pullEvent("mouse_click")
                         if button == 1 then
                             if x >= W-3 and y == 1 then
-                                break
-                            elseif y > 1 and y - 1 <= #routes then
-                                local selectedRoute = routes[y-1]
-                                os.queueEvent("rail_route_selected", selectedRoute)
-                                routeChosen = true
+                                return
+                            elseif y > 1 and y - 1 <= #stationIds then
+                                destination = stationIds[y-1]
                                 return
                             end
                         end
@@ -151,8 +176,29 @@ local function handleNearbyStation()
                 end,
                 function () waitForNoStation(stationData.name) end
             )
-            -- Quit our main loop if the user has chosen a route.
-            if routeChosen then return end
+            if destination ~= nil then
+                -- Fetch the whole route.
+                modem.transmit(SERVER_CHANNEL, MY_CHANNEL, {command = "ROUTE", startNode = stationData.name, endNode = destination})
+                local routeResponse = waitForModemMessage(SERVER_CHANNEL, 3)
+                if routeResponse and routeResponse.msg.success then
+                    local routeEdgeIds = {}
+                    for _, segment in pairs(routeResponse.msg.route) do
+                        if segment.via then
+                            table.insert(routeEdgeIds, segment.via)
+                        end
+                    end
+                    os.queueEvent("rail_route_selected", {path = routeEdgeIds, destination = destination})
+                    return
+                elseif routeResponse and routeResponse.msg.error then
+                    drawErrorPage("Failed to get route: "..routeResponse.msg.error)
+                else
+                    drawErrorPage("Failed to get route. Please contact an administrator if the issue persists.")
+                end
+            end
+        elseif response and response.msg.error then
+            drawErrorPage(response.msg.error)
+        else
+            drawErrorPage("Could not get a list of stations. Please contact an administrator if the issue persists.\n"..textutils.serialize(response, {compact=true}))
         end
     end
 end
@@ -164,7 +210,7 @@ local function waitForRouteSelection()
             handleNearbyStation
         )
         local event, route = os.pullEvent("rail_route_selected")
-        if event and type(route) == "table" then
+        if event and route then
             return route
         end
     end
@@ -178,10 +224,7 @@ if #args > 1 then
     for _, branch in pairs(route) do
         print("  "..branch)
     end
-    parallel.waitForAny(
-        function() broadcastRoute(route) end,
-        function() waitForStation(route[#route]) end
-    )
+    broadcastRoute(route)
     return
 end
 
@@ -203,7 +246,7 @@ while true do
 
     parallel.waitForAny(
         function() broadcastRoute(route.path) end,
-        function() waitForStation(route.path[#route.path]) end,
+        function() waitForStation(route.destination) end,
         function() -- Listen for user clicks on the "Quit" button.
             while true do
                 local event, button, x, y = os.pullEvent("mouse_click")

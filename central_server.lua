@@ -8,8 +8,8 @@ local RECEIVE_CHANNEL = 45452
 
 -- ONLY FOR DEBUGGING
 -- inspect = require("inspect")
--- local modem = peripheral.wrap("top") or error("Missing top modem")
--- modem.open(RECEIVE_CHANNEL)
+local modem = peripheral.wrap("top") or error("Missing top modem")
+modem.open(RECEIVE_CHANNEL)
 
 local function generateStandardNode(id, edgeIds)
     local node = {id = id, connections = {}, type = "JUNCTION"}
@@ -23,9 +23,10 @@ local function generateStandardNode(id, edgeIds)
     return node
 end
 
-local function generateStationNode(id, edgeId)
+local function generateStationNode(id, displayName, edgeId)
     return {
         id = id,
+        displayName = displayName,
         connections = {
             {from = nil, to = edgeId},
             {from = edgeId, to = nil}
@@ -40,7 +41,7 @@ local function loadGraph()
     -- g = textutils.unserialize(f:read("*a"))
     -- f:close()
     --return g
-    return {
+    local tempGraph = {
         nodes = {
             generateStandardNode("Junction-HandieVale", {"handievale", "N1", "W1"}),
             generateStandardNode("Junction-Middlecross", {"W1", "N2", "W2", "S1"}),
@@ -48,10 +49,10 @@ local function loadGraph()
             generateStandardNode("Junction-End", {"E1", "E2", "end"}),
             generateStandardNode("Junction-Klausville", {"N3", "N4", "klausville"}),
             generateStandardNode("Junction-Foundry-West", {"W3", "foundry", "W4"}),
-            generateStationNode("station-klausville", "klausville"),
-            generateStationNode("station-handievale", "handievale"),
-            generateStationNode("station-end", "end"),
-            generateStationNode("station-foundry", "foundry")
+            generateStationNode("station-klausville", "Klausville", "klausville"),
+            generateStationNode("station-handievale", "HandieVale", "handievale"),
+            generateStationNode("station-end", "End & Biofuel Refinery", "end"),
+            generateStationNode("station-foundry", "Jack's Foundry", "foundry")
         },
         edges = {
             {id = "handievale", length = 16},
@@ -70,6 +71,7 @@ local function loadGraph()
             {id = "N4", length = nil}
         }
     }
+    return tempGraph
 end
 
 local function filterTable(arr, func)
@@ -296,7 +298,7 @@ local function handleRequests(graph)
     end
 end
 
--- handleRequests(loadGraph())
+handleRequests(loadGraph())
 
 -- local graph = loadGraph()
 -- print("GRAPH:")
