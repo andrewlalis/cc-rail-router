@@ -4,12 +4,12 @@ graph of the entire network, and handles requests to find paths to route
 traffic through.
 ]]--
 
-local RECEIVE_CHANNEL = 45453
+local RECEIVE_CHANNEL = 45452
 
 -- ONLY FOR DEBUGGING
 -- inspect = require("inspect")
-local modem = peripheral.wrap("top") or error("Missing top modem")
-modem.open(RECEIVE_CHANNEL)
+-- local modem = peripheral.wrap("top") or error("Missing top modem")
+-- modem.open(RECEIVE_CHANNEL)
 
 local function generateStandardNode(id, edgeIds)
     local node = {id = id, connections = {}, type = "JUNCTION"}
@@ -229,6 +229,25 @@ local function findPath(graph, startNode, endNode)
     return nil
 end
 
+local function getReachableStations(graph, startNode)
+    local queue = findConnectedNodes(graph, startNode)
+    local stations = {}
+    local visitedNodeIds = {startNode.id}
+    while #queue > 0 do
+        local node = table.remove(queue, 1).node
+        if node.type == "STATION" and not tableContains(visitedNodeIds, node.id) then
+            table.insert(stations, node)
+        end
+        table.insert(visitedNodeIds, node.id)
+        for _, conn in pairs(findConnectedNodes(graph, node)) do
+            if not tableContains(visitedNodeIds, conn.node.id) then
+                table.insert(queue, conn)
+            end
+        end
+    end
+    return stations
+end
+
 local function handleRouteRequest(graph, replyChannel, msg)
     if not msg.startNode or not msg.endNode then
         modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "Invalid request"})
@@ -248,12 +267,28 @@ local function handleRouteRequest(graph, replyChannel, msg)
     modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = true, route = path})
 end
 
+local function handleGetRoutesRequest(graph, replyChannel, msg)
+    if not msg.startNode then
+        modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "Invalid request"})
+        return
+    end
+    local startNode = findNodeById(graph, msg.startNode)
+    if not startNode then
+        modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "Unknown node"})
+        return
+    end
+    local stations = getReachableStations(graph, startNode)
+    modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = true, stations = stations})
+end
+
 local function handleRequests(graph)
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
         if channel == RECEIVE_CHANNEL and msg and msg.command and type(msg.command) == "string" then
             if msg.command == "ROUTE" then
                 handleRouteRequest(graph, replyChannel, msg)
+            elseif msg.command == "GET_ROUTES" then
+                handleGetRoutesRequest(graph, replyChannel, msg)
             else
                 modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "Invalid command"})
             end
@@ -261,12 +296,13 @@ local function handleRequests(graph)
     end
 end
 
-handleRequests(loadGraph())
+-- handleRequests(loadGraph())
 
 -- local graph = loadGraph()
 -- print("GRAPH:")
 -- print(inspect(graph))
 -- local startNode = findNodeById(graph, "station-handievale")
+-- print(inspect(getReachableStations(graph, startNode)))
 -- local endNode = findNodeById(graph, "station-foundry")
 -- print("\n\nPATH:")
 -- local path = findPath(graph, startNode, endNode)

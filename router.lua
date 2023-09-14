@@ -5,7 +5,7 @@ It also serves as the GUI that users of the system interact with.
 ]]--
 local SWITCH_CHANNEL = 45450
 local STATION_BROADCAST_CHANNEL = 45451
-local STATION_REQUEST_CHANNEL = 45452
+local SERVER_CHANNEL = 45452
 local MY_CHANNEL = 45460
 
 local g = require("simple-graphics")
@@ -35,7 +35,7 @@ end
 local function waitForStation(stationName)
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if channel == STATION_BROADCAST_CHANNEL and msg == stationName and dist <= 16 then
+        if channel == STATION_BROADCAST_CHANNEL and msg and msg.name == stationName and msg.range >= dist then
             return
         end
     end
@@ -44,7 +44,7 @@ end
 local function listenForAnyStation()
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if channel == STATION_BROADCAST_CHANNEL and type(msg) == "string" and dist <= 16 then
+        if channel == STATION_BROADCAST_CHANNEL and msg and msg.range >= dist then
             os.queueEvent("rail_station_nearby", msg, dist)
         end
     end
@@ -55,8 +55,8 @@ local function waitForNoStation(targetName)
     while os.epoch() - lastPing < 5000 do
         parallel.waitForAny(
             function ()
-                local event, name, dist = os.pullEvent("rail_station_nearby")
-                if not targetName or targetName == name then
+                local event, data, dist = os.pullEvent("rail_station_nearby")
+                if not targetName or targetName == data.name then
                     stationPresent = true
                     lastPing = os.epoch()
                 end
@@ -95,11 +95,11 @@ local function handleNearbyStation()
         g.drawText(term, 1, 3, "see available routes.", colors.gray, colors.white)
         os.sleep(1)
 
-        local event, name, dist = os.pullEvent("rail_station_nearby")
+        local event, stationData, dist = os.pullEvent("rail_station_nearby")
         g.clear(term, colors.white)
         g.drawXLine(term, 1, W, 1, colors.lightBlue)
         g.drawText(term, 1, 1, "Found a station!", colors.black, colors.lightBlue)
-        g.drawText(term, 1, 3, name, colors.blue, colors.white)
+        g.drawText(term, 1, 3, stationData.name, colors.blue, colors.white)
         g.drawText(term, 1, 5, "Fetching routes...", colors.gray, colors.white)
         os.sleep(1)
 
@@ -149,7 +149,7 @@ local function handleNearbyStation()
                         end
                     end
                 end,
-                function () waitForNoStation(name) end
+                function () waitForNoStation(stationData.name) end
             )
             -- Quit our main loop if the user has chosen a route.
             if routeChosen then return end
