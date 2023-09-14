@@ -6,11 +6,7 @@ You should add a "station_config.tbl" file containing:
 {
     name = "stationname",
     displayName = "Station Name",
-    range = 8,
-    routes = {
-        {name = "First", path = {"A", "B", "C"}},
-        {name = "Second", path = {"D", "A", "C"}}
-    }
+    range = 8
 }
 ]]--
 
