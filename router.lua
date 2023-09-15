@@ -42,7 +42,7 @@ end
 local function waitForStation(stationName)
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.name == stationName and msg.range >= dist then
+        if type(channel) == "number" and channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.name == stationName and msg.range >= dist then
             return
         end
     end
@@ -51,7 +51,7 @@ end
 local function listenForAnyStation()
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.range >= dist then
+        if type(channel) == "number" and channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.range >= dist then
             os.queueEvent("rail_station_nearby", msg, dist)
         end
     end
@@ -79,7 +79,7 @@ local function waitForModemMessage(expectedReplyChannel, timeout)
         function ()
             while true do
                 local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-                if replyChannel == expectedReplyChannel then
+                if type(replyChannel) == "number" and replyChannel == expectedReplyChannel then
                     data = {}
                     data.channel = channel
                     data.replyChannel = replyChannel
