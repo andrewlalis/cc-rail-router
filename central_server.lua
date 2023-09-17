@@ -6,10 +6,19 @@ traffic through.
 
 local RECEIVE_CHANNEL = 45452
 
+local g = require("simple-graphics")
+local W, H = term.getSize()
+local console = g.createConsole(W, H-2, colors.white, colors.black, "UP")
+
 -- ONLY FOR DEBUGGING
 -- inspect = require("inspect")
 local modem = peripheral.wrap("top") or error("Missing top modem")
 modem.open(RECEIVE_CHANNEL)
+
+local function logToConsole(text)
+    local timestamp = os.date("%F %T")
+    g.appendAndDrawConsole(term, console, timestamp.." "..text, 1, 3)
+end
 
 local function generateStandardNode(id, edgeIds)
     local node = {id = id, connections = {}, type = "JUNCTION"}
@@ -49,22 +58,26 @@ local function loadGraph()
             generateStandardNode("Junction-End", {"E1", "E2", "end"}),
             generateStandardNode("Junction-Klausville", {"N3", "N4", "klausville"}),
             generateStandardNode("Junction-Foundry-West", {"W3", "foundry", "W4"}),
+            generateStandardNode("Junction-Cam", {"S1", "S2", "cam"}),
             generateStationNode("station-klausville", "Klausville", "klausville"),
             generateStationNode("station-handievale", "HandieVale", "handievale"),
             generateStationNode("station-end", "End & Biofuel Refinery", "end"),
-            generateStationNode("station-foundry", "Jack's Foundry", "foundry")
+            generateStationNode("station-foundry", "Jack's Foundry", "foundry"),
+            generateStationNode("station-cam", "Camville", "cam")
         },
         edges = {
             {id = "handievale", length = 16},
             {id = "end", length = 48},
             {id = "foundry", length = 45},
             {id = "klausville", length = 12},
+            {id = "cam", length = 16},
             {id = "N1", length = nil},
             {id = "W1", length = 300},
             {id = "N2", length = 600},
             {id = "E1", length = 75},
             {id = "W2", length = nil},
-            {id = "S1", length = nil},
+            {id = "S1", length = 420},
+            {id = "S2", length = nil},
             {id = "W3", length = 50},
             {id = "W4", length = nil},
             {id = "N3", length = 350},
@@ -261,11 +274,20 @@ local function handleRouteRequest(graph, replyChannel, msg)
         modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "Unknown node(s)"})
         return
     end
+    logToConsole("Finding path from "..startNode.id.." to "..endNode.id.."...")
     local path = findPath(graph, startNode, endNode)
     if not path then
+        logToConsole("Couldn't find a path!")
         modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "No valid path"})
         return
     end
+
+    local pathStr = ""
+    for i, segment in pairs(path) do
+        pathStr = pathStr .. segment.node.id
+        if i < #path - 1 then pathStr = pathStr .. ", " end
+    end
+    logToConsole("Found path: "..pathStr)
     modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = true, route = path})
 end
 
@@ -279,14 +301,17 @@ local function handleGetRoutesRequest(graph, replyChannel, msg)
         modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = false, error = "Unknown node"})
         return
     end
+    logToConsole("Finding reachable stations from "..startNode.id.."...")
     local stations = getReachableStations(graph, startNode)
+    logToConsole("Found "..#stations.." results.")
     modem.transmit(replyChannel, RECEIVE_CHANNEL, {success = true, stations = stations})
 end
 
-local function handleRequests(graph)
+local function handleRequests(graph, console)
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
         if channel == RECEIVE_CHANNEL and msg and msg.command and type(msg.command) == "string" then
+            logToConsole("Got request on CH: "..channel..", RCH: "..replyChannel..", CMD: "..msg.command)
             if msg.command == "ROUTE" then
                 handleRouteRequest(graph, replyChannel, msg)
             elseif msg.command == "GET_ROUTES" then
@@ -298,19 +323,8 @@ local function handleRequests(graph)
     end
 end
 
-handleRequests(loadGraph())
-
--- local graph = loadGraph()
--- print("GRAPH:")
--- print(inspect(graph))
--- local startNode = findNodeById(graph, "station-handievale")
--- print(inspect(getReachableStations(graph, startNode)))
--- local endNode = findNodeById(graph, "station-foundry")
--- print("\n\nPATH:")
--- local path = findPath(graph, startNode, endNode)
--- if path then
---     print("Found path!")
---     for i, element in pairs(path) do
---         print(i..". "..element.node.id.." via edge "..inspect(element.via).." @ "..inspect(element.distance))
---     end
--- end
+g.clear(term, colors.black)
+g.drawTextCenter(term, W/2, 1, "CC-Rail Central Server", colors.yellow, colors.black)
+g.drawXLine(term, 1, W, 2, colors.gray)
+logToConsole("Now taking requests.")
+handleRequests(loadGraph(), console)

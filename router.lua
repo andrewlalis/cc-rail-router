@@ -42,7 +42,7 @@ end
 local function waitForStation(stationName)
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if type(channel) == "number" and channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.name == stationName and msg.range >= dist then
+        if type(channel) == "number" and channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.name == stationName and dist ~= nil and msg.range >= dist then
             return
         end
     end
@@ -51,7 +51,7 @@ end
 local function listenForAnyStation()
     while true do
         local event, side, channel, replyChannel, msg, dist = os.pullEvent("modem_message")
-        if type(channel) == "number" and channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and msg.range >= dist then
+        if type(channel) == "number" and channel == STATION_BROADCAST_CHANNEL and isValidStationInfo(msg) and dist ~= nil and msg.range >= dist then
             os.queueEvent("rail_station_nearby", msg, dist)
         end
     end
@@ -140,10 +140,27 @@ local function drawErrorPage(errorMsg)
     )
 end
 
+local function drawGoingToSleepScreen()
+    g.clear(term, colors.white)
+    term.setTextColor(colors.gray)
+    term.setCursorPos(1, 1)
+    print("Going to sleep. Click again to wake me.")
+    os.sleep(2)
+    os.shutdown()
+end
+
 local function handleNearbyStation()
     while true do
         drawLookingForStationScreen()
-        local event, stationData, dist = os.pullEvent("rail_station_nearby")
+        local event, stationData, dist = nil
+        parallel.waitForAny(
+            function () event, stationData, dist = os.pullEvent("rail_station_nearby") end,
+            function ()
+                os.sleep(10)
+                drawGoingToSleepScreen()
+            end
+        )
+        if not stationData then return end
         drawStationFoundScreen(stationData.displayName)
         os.sleep(0.5)
 
@@ -231,7 +248,7 @@ end
 g.clear(term, colors.white)
 g.drawTextCenter(term, W/2, H/2, "Rail Router", colors.black, colors.white)
 g.drawTextCenter(term, W/2, H/2 + 2, "By Andrew", colors.gray, colors.white)
-os.sleep(1)
+os.sleep(0.5)
 
 while true do
     local route = waitForRouteSelection()
